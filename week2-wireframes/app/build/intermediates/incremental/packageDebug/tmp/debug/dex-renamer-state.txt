@@ -1,0 +1,7 @@
+#Fri Oct 23 21:16:20 IST 2026
+base.0=D\:\\B.Tech\\Internship\\Internship Project-Orbit\\week2-wireframes\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
+base.1=D\:\\B.Tech\\Internship\\Internship Project-Orbit\\week2-wireframes\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\2\\classes.dex
+path.0=0/classes.dex
+path.1=2/classes.dex
+renamed.0=classes.dex
+renamed.1=classes2.dex

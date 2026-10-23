@@ -1,0 +1,28 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.orbit.week2.app-merged_res-4:/values_values.arsc.flat",
+            "map": [
+                {
+                    "source": "D:\\B.Tech\\Internship\\Internship Project-Orbit\\week2-wireframes\\app\\src\\main\\res\\values\\styles.xml",
+                    "from": {
+                        "startLines": "1",
+                        "startColumns": "4",
+                        "startOffsets": "16",
+                        "endLines": "9",
+                        "endColumns": "12",
+                        "endOffsets": "526"
+                    },
+                    "to": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "10",
+                        "endColumns": "12",
+                        "endOffsets": "565"
+                    }
+                }
+            ]
+        }
+    ]
+}

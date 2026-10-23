@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" role="img" aria-labelledby="title desc">
+  <title id="title">Orbit wireframe navigation flow</title>
+  <desc id="desc">Home links to all primary sections. Secondary flows connect records, bills, search, insights, settings, and shopping interactions.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#777"/></marker></defs>
+  <style>text{font-family:Arial,sans-serif;fill:#292929}.title{font-size:25px;font-weight:700}.sub{font-size:13px;fill:#666}.node{fill:#f7f7f7;stroke:#555;stroke-width:1.5;rx:12}.primary{fill:#e8e8e8;stroke:#333;stroke-width:2}.label{font-size:15px;font-weight:700}.note{font-size:11px;fill:#555}.edge{fill:none;stroke:#858585;stroke-width:1.6;marker-end:url(#arrow)}.edge.dashed{stroke-dasharray:5 5}</style>
+  <text class="title" x="40" y="42">Orbit · Navigation flow</text><text class="sub" x="40" y="66">Week 2 low-fidelity native Android prototype</text>
+  <!-- arrows behind nodes -->
+  <g class="edge">
+    <path d="M500 154 L500 195"/><path d="M440 128 C330 145 250 180 207 218"/><path d="M560 128 C675 145 750 180 793 218"/>
+    <path d="M452 145 C390 218 320 285 247 336"/><path d="M548 145 C610 218 680 285 753 336"/>
+    <path d="M450 149 C365 273 315 390 262 456"/><path d="M550 149 C635 273 685 390 738 456"/>
+    <path d="M500 151 L500 555"/><path d="M423 145 C310 250 210 385 190 555"/>
+    <path d="M230 263 L230 322"/><path d="M770 263 L770 322"/><path d="M240 380 L240 440"/><path d="M760 380 L760 440"/>
+  </g>
+  <g class="edge dashed"><path d="M288 354 C385 330 415 270 465 243"/><path d="M710 354 C615 330 585 270 535 243"/><path d="M290 475 C370 500 420 521 465 567"/><path d="M710 475 C630 500 580 521 535 567"/><path d="M515 265 C540 385 570 460 550 555"/><path d="M240 555 C290 500 330 390 450 260"/></g>
+  <g><rect class="node primary" x="410" y="91" width="180" height="64"/><text class="label" x="500" y="119" text-anchor="middle">1 · Home Dashboard</text><text class="note" x="500" y="139" text-anchor="middle">Main navigation hub</text>
+    <rect class="node" x="125" y="211" width="210" height="56"/><text class="label" x="230" y="236" text-anchor="middle">2 · Timeline</text><text class="note" x="230" y="253" text-anchor="middle">Event → record details</text>
+    <rect class="node" x="665" y="211" width="210" height="56"/><text class="label" x="770" y="236" text-anchor="middle">4 · Library</text><text class="note" x="770" y="253" text-anchor="middle">Category → record details</text>
+    <rect class="node" x="125" y="325" width="230" height="58"/><text class="label" x="240" y="350" text-anchor="middle">3 · Add Record</text><text class="note" x="240" y="369" text-anchor="middle">Save → 7 · Record Details</text>
+    <rect class="node" x="645" y="325" width="250" height="58"/><text class="label" x="770" y="350" text-anchor="middle">5 · Bills &amp; Subscriptions</text><text class="note" x="770" y="369" text-anchor="middle">Payment status → details</text>
+    <rect class="node" x="125" y="443" width="230" height="58"/><text class="label" x="240" y="468" text-anchor="middle">8 · Search</text><text class="note" x="240" y="487" text-anchor="middle">Result → 7 · Record Details</text>
+    <rect class="node" x="645" y="443" width="250" height="58"/><text class="label" x="770" y="468" text-anchor="middle">9 · Insights</text><text class="note" x="770" y="487" text-anchor="middle">Payment / renewal → details</text>
+    <rect class="node" x="380" y="555" width="240" height="60"/><text class="label" x="500" y="581" text-anchor="middle">6 · Shopping List</text><text class="note" x="500" y="600" text-anchor="middle">Add item → check to complete</text>
+    <rect class="node" x="375" y="203" width="250" height="62"/><text class="label" x="500" y="229" text-anchor="middle">7 · Record Details</text><text class="note" x="500" y="249" text-anchor="middle">Edit · reminder · confirm delete</text>
+  </g>
+  <g><rect class="node" x="70" y="555" width="240" height="60"/><text class="label" x="190" y="581" text-anchor="middle">10 · Settings</text><text class="note" x="190" y="600" text-anchor="middle">Change preference → return</text></g>
+  <text class="note" x="40" y="670">Solid arrows: primary routes from Home · Dashed arrows: related detail / return routes</text>
+</svg>

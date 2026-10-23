@@ -1,0 +1,7 @@
+com.orbit.week2.app-pngs-0 D:\B.Tech\Internship\Internship Project-Orbit\week2-wireframes\app\build\generated\res\pngs\debug
+com.orbit.week2.app-resValues-1 D:\B.Tech\Internship\Internship Project-Orbit\week2-wireframes\app\build\generated\res\resValues\debug
+com.orbit.week2.app-packageDebugResources-2 D:\B.Tech\Internship\Internship Project-Orbit\week2-wireframes\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.orbit.week2.app-packageDebugResources-3 D:\B.Tech\Internship\Internship Project-Orbit\week2-wireframes\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.orbit.week2.app-merged_res-4 D:\B.Tech\Internship\Internship Project-Orbit\week2-wireframes\app\build\intermediates\merged_res\debug
+com.orbit.week2.app-debug-5 D:\B.Tech\Internship\Internship Project-Orbit\week2-wireframes\app\src\debug\res
+com.orbit.week2.app-main-6 D:\B.Tech\Internship\Internship Project-Orbit\week2-wireframes\app\src\main\res
