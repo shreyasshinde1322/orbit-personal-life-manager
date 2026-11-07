@@ -2,16 +2,24 @@ package com.orbit.week2;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.AdapterView;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -24,37 +32,55 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 
 /** Native Android prototype with local SQLite-backed records and shopping items. */
 public class MainActivity extends Activity {
+    private static final int REQUEST_ATTACHMENT = 4102;
+    private static final int REQUEST_EXPORT = 4103;
+    private static final int REQUEST_RESTORE = 4104;
     private static final int INK = Color.rgb(28, 43, 64);
     private static final int MUTED = Color.rgb(99, 112, 131);
     private static final int LINE = Color.rgb(220, 227, 236);
     private static final int PANEL = Color.rgb(245, 248, 252);
-    private final List<String> history = new ArrayList<>();
-    private final List<String> shoppingItems = new ArrayList<>(Arrays.asList("Dish soap", "Notebook", "Light bulbs"));
-    private final List<String> completedItems = new ArrayList<>(Arrays.asList("Oat milk"));
+    private final java.util.List<String> history = new java.util.ArrayList<>();
     private LinearLayout root;
     private FrameLayout screenSlot;
     private TextView detailTitle;
     private String currentScreen = "home";
     private String selectedCategory = "All";
+    private String insightsPeriod = "This month";
     private String currentRecordTitle = "Wireless headphones";
     private String currentRecordCategory = "Purchase", currentRecordDescription = "Receipt saved · Warranty ends 14 Dec 2026";
+    private String prefilledCategory;
     private long currentRecordId = 1L;
+    private long currentRecordDueAt;
+    private long currentRecordPurchaseAt;
+    private long currentRecordReminderAt;
+    private boolean currentRecordReminderEnabled;
+    private String currentRecordRecurrence = "None";
+    private long currentRecordAmount;
+    private boolean currentRecordPaid;
+    private String formAttachmentUri, formAttachmentName;
+    private Button attachmentButton;
+    private boolean removeAttachmentOnSave;
+    private long editingRecordId = -1L;
     private OrbitStore store;
     private Runnable searchRefresh;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         store = new OrbitStore(this);
-        shoppingItems.clear(); completedItems.clear();
-        android.database.Cursor openItems = store.items(false); while (openItems.moveToNext()) shoppingItems.add(openItems.getString(1)); openItems.close();
-        android.database.Cursor doneItems = store.items(true); while (doneItems.moveToNext()) completedItems.add(doneItems.getString(1)); doneItems.close();
         getWindow().setStatusBarColor(Color.WHITE);
         getWindow().setNavigationBarColor(Color.WHITE);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
@@ -65,10 +91,13 @@ public class MainActivity extends Activity {
         root.addView(screenSlot, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(bottomNavigation(), new LinearLayout.LayoutParams(-1, dp(62)));
         setContentView(root);
-        showScreen("home", false);
+        if (!showRecordFromIntent(getIntent())) showScreen("home", false);
     }
 
     private int dp(float v) { return (int) (v * getResources().getDisplayMetrics().density + 0.5f); }
+    private String formatDate(long millis) { return new SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(new Date(millis)); }
+    private String formatDateTime(long millis) { return new SimpleDateFormat("d MMM yyyy · h:mm a", Locale.getDefault()).format(new Date(millis)); }
+    private boolean beforeToday(long millis) { Calendar today=Calendar.getInstance(); today.set(Calendar.HOUR_OF_DAY,0); today.set(Calendar.MINUTE,0); today.set(Calendar.SECOND,0); today.set(Calendar.MILLISECOND,0); return millis < today.getTimeInMillis(); }
     private GradientDrawable outline(int fill, int stroke, int radius) {
         GradientDrawable d = new GradientDrawable(); d.setColor(fill); d.setCornerRadius(dp(radius));
         d.setStroke(dp(1), stroke); return d;
@@ -178,8 +207,57 @@ public class MainActivity extends Activity {
         screenSlot.addView(view, new FrameLayout.LayoutParams(-1, -1));
         root.removeViewAt(1); root.addView(bottomNavigation(), new LinearLayout.LayoutParams(-1, dp(62)));
     }
-    private void goBack() { if (!history.isEmpty()) { String previous = history.remove(history.size()-1); showScreen(previous, false); } else showScreen("home", false); }
+    private void goBack() { if (currentScreen.equals("add")) { editingRecordId = -1L; prefilledCategory = null; removeAttachmentOnSave=false; formAttachmentUri=null; formAttachmentName=null; } if (!history.isEmpty()) { String previous = history.remove(history.size()-1); showScreen(previous, false); } else showScreen("home", false); }
     @Override public void onBackPressed() { goBack(); }
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if ((requestCode==REQUEST_EXPORT||requestCode==REQUEST_RESTORE)&&resultCode==RESULT_OK&&data!=null&&data.getData()!=null) { if(requestCode==REQUEST_EXPORT)exportBackup(data.getData());else confirmRestore(data.getData()); return; }
+        if (requestCode != REQUEST_ATTACHMENT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); }
+        catch (SecurityException ignored) { Toast.makeText(this, "The selected file may only be available for this session", Toast.LENGTH_LONG).show(); }
+        formAttachmentUri = uri.toString(); formAttachmentName = attachmentName(uri); removeAttachmentOnSave = false;
+        if (attachmentButton != null) attachmentButton.setText(formAttachmentName == null ? "Selected file" : formAttachmentName);
+    }
+    private String attachmentName(Uri uri) {
+        Cursor c = null;
+        try { c = getContentResolver().query(uri, null, null, null, null); if (c != null && c.moveToFirst()) { int index = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (index >= 0) return c.getString(index); } }
+        catch (Exception ignored) { }
+        finally { if (c != null) c.close(); }
+        return uri.getLastPathSegment();
+    }
+    private void chooseAttachment() {
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT); picker.addCategory(Intent.CATEGORY_OPENABLE); picker.setType("*/*");
+        picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(picker, REQUEST_ATTACHMENT);
+    }
+    private void openAttachment(String attachmentUri) {
+        try { Uri uri=Uri.parse(attachmentUri); String mime=getContentResolver().getType(uri); Intent viewer=new Intent(Intent.ACTION_VIEW); viewer.setDataAndType(uri,mime==null?"*/*":mime); viewer.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); startActivity(Intent.createChooser(viewer,"Open attachment")); }
+        catch (Exception error) { Toast.makeText(this,"No app can open this file",Toast.LENGTH_SHORT).show(); }
+    }
+    private void startBackupExport() { Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/octet-stream");i.putExtra(Intent.EXTRA_TITLE,"orbit-backup.db");startActivityForResult(i,REQUEST_EXPORT); }
+    private void startBackupRestore() { Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/octet-stream");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivityForResult(i,REQUEST_RESTORE); }
+    private void exportBackup(Uri destination) {
+        try { store.close(); try(InputStream in=new FileInputStream(getDatabasePath("orbit-prototype.db"));OutputStream out=getContentResolver().openOutputStream(destination)){if(out==null)throw new java.io.IOException("Could not create the backup file");copy(in,out);} store=new OrbitStore(this);Toast.makeText(this,"Backup exported",Toast.LENGTH_LONG).show(); }
+        catch(Exception e){store=new OrbitStore(this);Toast.makeText(this,"Backup could not be exported",Toast.LENGTH_LONG).show();}
+    }
+    private void confirmRestore(Uri source) { new AlertDialog.Builder(this).setTitle("Replace Orbit data?").setMessage("This replaces the records and shopping list on this device with the selected backup.").setNegativeButton("Cancel",(d,w)->d.dismiss()).setPositiveButton("Restore",(d,w)->restoreBackup(source)).show(); }
+    private void restoreBackup(Uri source) {
+        File temporary=null;
+        try { temporary=File.createTempFile("orbit-restore-",".db",getCacheDir());try(InputStream in=getContentResolver().openInputStream(source);OutputStream out=new FileOutputStream(temporary)){if(in==null)throw new java.io.IOException("Backup could not be opened");copy(in,out);}
+            byte[] signature=new byte[16];try(InputStream in=new FileInputStream(temporary)){int read=0;while(read<signature.length){int n=in.read(signature,read,signature.length-read);if(n<0)break;read+=n;}if(read<16||!new String(signature,java.nio.charset.StandardCharsets.US_ASCII).equals("SQLite format 3\u0000"))throw new java.io.IOException("This is not an Orbit database backup");}
+            android.database.sqlite.SQLiteDatabase check=android.database.sqlite.SQLiteDatabase.openDatabase(temporary.getAbsolutePath(),null,android.database.sqlite.SQLiteDatabase.OPEN_READONLY);try{check.rawQuery("SELECT record_id FROM records LIMIT 1",null).close();check.rawQuery("SELECT item_id FROM shopping_items LIMIT 1",null).close();}finally{check.close();}
+            OrbitReminderScheduler.syncAll(this,store,false);store.close();File target=getDatabasePath("orbit-prototype.db");try(InputStream in=new FileInputStream(temporary);OutputStream out=new FileOutputStream(target)){copy(in,out);}store=new OrbitStore(this);store.getWritableDatabase();OrbitReminderScheduler.syncAll(this,store,preferences().getBoolean("reminders_enabled",true));showScreen("home",false);Toast.makeText(this,"Backup restored",Toast.LENGTH_LONG).show();
+        } catch(Exception e){try{store.close();}catch(Exception ignored){}store=new OrbitStore(this);try{store.getWritableDatabase();}catch(Exception ignored){}Toast.makeText(this,"Backup could not be restored: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+        finally {if(temporary!=null)temporary.delete();}
+    }
+    private void copy(InputStream in,OutputStream out)throws java.io.IOException {byte[] buffer=new byte[8192];int count;while((count=in.read(buffer))!=-1)out.write(buffer,0,count);out.flush();}
+    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); showRecordFromIntent(intent); }
+    private boolean showRecordFromIntent(Intent intent) {
+        if(intent==null||!intent.hasExtra("record_id"))return false; long id=intent.getLongExtra("record_id",-1L); if(id<1)return false;
+        Cursor c=store.recordById(id); try { if(!c.moveToFirst())return false; currentRecordId=c.getLong(0);currentRecordTitle=c.getString(1);currentRecordCategory=c.getString(2);currentRecordDescription=c.getString(3)==null?"":c.getString(3);currentRecordAmount=c.getLong(4);currentRecordDueAt=c.getLong(5);currentRecordPaid=c.getInt(6)==1;currentRecordReminderAt=c.getLong(7);currentRecordReminderEnabled=c.getInt(8)==1;currentRecordRecurrence=c.getString(9);currentRecordPurchaseAt=c.getLong(10); } finally { c.close(); }
+        history.clear(); showScreen("details",false); return true;
+    }
     private LinearLayout bottomNavigation() {
         LinearLayout bar = row(); bar.setGravity(Gravity.CENTER); bar.setBackgroundColor(Color.WHITE);
         View line = new View(this); // use an outer wrapper so the navigation has a clear top boundary
@@ -194,29 +272,57 @@ public class MainActivity extends Activity {
     }
 
     private View homeScreen() {
-        LinearLayout v = page("ORBIT · ILLUSTRATIVE DATA", "Good morning, Alex", false); LinearLayout p = body(v);
-        LinearLayout top = row(); top.addView(label("FRIDAY, 23 OCTOBER"), new LinearLayout.LayoutParams(0, -2, 1));
+        int hour=Calendar.getInstance().get(Calendar.HOUR_OF_DAY); String greeting=hour<12?"Good morning":hour<18?"Good afternoon":"Good evening";
+        LinearLayout v = page("YOUR PERSONAL ORBIT", greeting, false); LinearLayout p = body(v);
+        LinearLayout top = row(); top.addView(label(new SimpleDateFormat("EEEE, d MMMM",Locale.getDefault()).format(new Date())), new LinearLayout.LayoutParams(0, -2, 1));
         TextView alerts = text("♧", 20, false, INK); alerts.setGravity(Gravity.CENTER); top.addView(alerts, new LinearLayout.LayoutParams(dp(42), dp(42))); alerts.setOnClickListener(x -> go("timeline"));
         TextView settings = text("⚙", 20, false, INK); settings.setGravity(Gravity.CENTER); top.addView(settings, new LinearLayout.LayoutParams(dp(42), dp(42))); settings.setOnClickListener(x -> go("settings")); p.addView(top);
         p.addView(paragraph("A clear view of what’s coming up.")); gap(p, 12);
-        summaries(p, new String[][]{{"04","Upcoming"},{"02","Due soon"},{"03","Open tasks"}}, new Runnable[]{() -> go("timeline"), () -> go("bills"), () -> go("shopping")});
-        section(p, "Next up"); listRow(p, "◷", "Electricity bill", "Bill · ₹1,240 · Due today", "Due", "details"); listRow(p, "↻", "Cloud storage renewal", "Subscription · ₹199 / month · 26 Oct", "Soon", "details");
+        int upcomingCount=0,dueSoonCount=0; Calendar today=Calendar.getInstance(); today.set(Calendar.HOUR_OF_DAY,0); today.set(Calendar.MINUTE,0); today.set(Calendar.SECOND,0); today.set(Calendar.MILLISECOND,0); long start=today.getTimeInMillis(), week=start+7L*24*60*60*1000, month=start+30L*24*60*60*1000;
+        android.database.Cursor stats=store.upcoming("All"); try { while(stats.moveToNext()) { long due=stats.getLong(5); boolean paid=stats.getInt(6)==1; if(!paid&&!beforeToday(due)&&due<month) { upcomingCount++; if(due<week) dueSoonCount++; } } } finally { stats.close(); }
+        android.database.Cursor taskCount=store.items(false); int openTasks=taskCount.getCount(); taskCount.close();
+        summaries(p, new String[][]{{String.format(Locale.US,"%02d",upcomingCount),"Next 30 days"},{String.format(Locale.US,"%02d",dueSoonCount),"Due in 7 days"},{String.format(Locale.US,"%02d",openTasks),"Open tasks"}}, new Runnable[]{() -> go("timeline"), () -> go("bills"), () -> go("shopping")});
+        section(p, "Next up"); LinearLayout next=column(); p.addView(next); populateHomeUpcoming(next,2);
         section(p, "Quick actions"); LinearLayout actions = row(); actions.addView(button("＋ Add Record", false, () -> go("add")), weight()); actions.addView(button("＋ Add Bill", false, () -> go("bills")), weight()); p.addView(actions);
         LinearLayout actions2 = row(); actions2.addView(button("▢ Shopping List", false, () -> go("shopping")), weight()); actions2.addView(button("⌕ Search", false, () -> go("search")), weight()); p.addView(actions2);
-        section(p, "Recent records"); listRow(p, "▧", "Headphones receipt", "Purchase · Added 18 Oct", "", "details");
+        section(p, "Recent records"); LinearLayout recent=column(); p.addView(recent); populateRecentRecords(recent,3);
         section(p, "Explore Orbit"); LinearLayout explore = row(); explore.addView(button("Library", false, () -> go("library")), weight()); explore.addView(button("Settings", false, () -> go("settings")), weight()); p.addView(explore);
-        section(p, "Empty state preview"); emptyState(p, "Your Orbit starts here", "Add a record or reminder to see your day take shape.", "Add your first record", () -> go("add"));
         return v;
+    }
+    private void openRecord(long id,String title,String type,String description,long amount,long dueAt,boolean paid,long reminderAt,boolean reminderEnabled) {
+        currentRecordId=id; currentRecordTitle=title; currentRecordCategory=type; currentRecordDescription=description==null?"":description; currentRecordAmount=amount; currentRecordDueAt=dueAt; currentRecordPaid=paid; currentRecordReminderAt=reminderAt; currentRecordReminderEnabled=reminderEnabled; go("details");
+    }
+    private void populateHomeUpcoming(LinearLayout destination,int max) {
+        android.database.Cursor c=store.upcoming("All"); int shown=0;
+        try { while(c.moveToNext()&&shown<max) { long due=c.getLong(5); boolean paid=c.getInt(6)==1; if(paid) continue; long id=c.getLong(0),amount=c.getLong(4),reminderAt=c.getLong(7); String title=c.getString(1),type=c.getString(2),desc=c.getString(3); boolean reminderEnabled=c.getInt(8)==1; String detail=type+(desc==null||desc.trim().isEmpty()?"":" · "+desc); if(amount>0)detail+=" · ₹"+String.format(Locale.US,"%.2f",amount/100.0); detail+=" · "+formatDate(due);
+            listRow(destination,"◷",title,detail,beforeToday(due)?"Overdue":"Upcoming","details"); View item=destination.getChildAt(destination.getChildCount()-2); item.setOnClickListener(view->openRecord(id,title,type,desc,amount,due,false,reminderAt,reminderEnabled)); shown++;
+        }} finally { c.close(); }
+        if(shown==0) destination.addView(paragraph("No unpaid items have a due date yet."));
+    }
+    private void populateRecentRecords(LinearLayout destination,int max) {
+        android.database.Cursor c=store.records("","All"); int shown=0;
+        try { while(c.moveToNext()&&shown<max) { long id=c.getLong(0),amount=c.getLong(4),due=c.getLong(5),reminderAt=c.getLong(7); String title=c.getString(1),type=c.getString(2),desc=c.getString(3); boolean paid=c.getInt(6)==1,reminderEnabled=c.getInt(8)==1; String detail=type+(desc==null||desc.trim().isEmpty()?"":" · "+desc); if(amount>0)detail+=" · ₹"+String.format(Locale.US,"%.2f",amount/100.0);
+            listRow(destination,"▤",title,detail,"","details"); View item=destination.getChildAt(destination.getChildCount()-2); item.setOnClickListener(view->openRecord(id,title,type,desc,amount,due,paid,reminderAt,reminderEnabled)); shown++;
+        }} finally { c.close(); }
+        if(shown==0) emptyState(destination,"No records yet","Add your first record to get started.","Add Record",()->go("add"));
     }
     private LinearLayout.LayoutParams weight() { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1); lp.setMargins(0, 0, dp(6), dp(7)); return lp; }
 
     private View timelineScreen() {
         LinearLayout v = page("YOUR SCHEDULE", "Timeline", false); LinearLayout p = body(v); chips(p, new String[]{"All","Bills","Subscriptions","Documents","Warranties"});
-        section(p, "Today · 23 Oct"); listRow(p, "◷", "Electricity bill", "Bill · ₹1,240 · Due today", "Overdue", "details");
-        section(p, "Tomorrow · 24 Oct"); listRow(p, "◷", "Return library book", "Reminder · Personal", "Upcoming", "details");
-        section(p, "This week"); listRow(p, "↻", "Cloud storage renewal", "Subscription · ₹199 · 26 Oct", "Upcoming", "details"); listRow(p, "✓", "Water bill", "Bill · 21 Oct", "Completed", "details");
-        section(p, "Later"); listRow(p, "◷", "Headphones warranty ends", "Warranty · 14 Dec", "Upcoming", "details");
+        LinearLayout entries=column(); p.addView(entries); populateTimeline(entries,selectedCategory);
+        if(entries.getChildCount()==0) emptyState(p,"Nothing scheduled", "Add a due date to a bill, subscription, document, or warranty to see it on your timeline.",null,null);
         return v;
+    }
+    private void populateTimeline(LinearLayout destination, String category) {
+        android.database.Cursor c=store.upcoming(category); String activeDate="";
+        try { while(c.moveToNext()) {
+            long id=c.getLong(0), amount=c.getLong(4), due=c.getLong(5), reminderAt=c.getLong(7); String title=c.getString(1), type=c.getString(2), desc=c.getString(3); boolean paid=c.getInt(6)==1, reminderEnabled=c.getInt(8)==1; String date=formatDate(due);
+            if(!date.equals(activeDate)){ section(destination,date); activeDate=date; }
+            String detail=type+(desc==null||desc.trim().isEmpty()?"":" · "+desc); if(amount>0) detail+=" · ₹"+String.format(Locale.US,"%.2f",amount/100.0);
+            listRow(destination,"◷",title,detail,paid?"Paid":beforeToday(due)?"Overdue":"Upcoming","details");
+            View entry=destination.getChildAt(destination.getChildCount()-2); entry.setOnClickListener(view->{currentRecordId=id;currentRecordTitle=title;currentRecordCategory=type;currentRecordDescription=desc==null?"":desc;currentRecordDueAt=due;currentRecordAmount=amount;currentRecordPaid=paid;currentRecordReminderAt=reminderAt;currentRecordReminderEnabled=reminderEnabled;go("details");});
+        }} finally { c.close(); }
     }
     private void chips(LinearLayout p, String[] labels) {
         LinearLayout r = row(); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(0, dp(8), 0, dp(8));
@@ -229,18 +335,55 @@ public class MainActivity extends Activity {
         HorizontalScrollViewCompat.add(this, p, r);
     }
     private View addRecordScreen() {
-        LinearLayout v = page("SAVE SOMETHING IMPORTANT", "Add Record", true); LinearLayout p = body(v);
+        boolean editing = editingRecordId > 0;
+        formAttachmentUri = editing && !removeAttachmentOnSave ? store.recordAttachmentUri(editingRecordId) : null;
+        formAttachmentName = editing && !removeAttachmentOnSave ? store.recordAttachmentName(editingRecordId) : null;
+        LinearLayout v = page(editing ? "UPDATE SAVED INFORMATION" : "SAVE SOMETHING IMPORTANT", editing ? "Edit Record" : "Add Record", true); LinearLayout p = body(v);
         Spinner category = new Spinner(this); android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Purchase", "Bill", "Subscription", "Warranty", "Document", "Note"}); category.setAdapter(adapter);
-        field(p, "Category", category, true); EditText name = edit("e.g. Wireless headphones", false); field(p, "Record name", name, true);
-        EditText notes = edit("Add helpful details", true); field(p, "Notes", notes, false);
-        field(p, "Purchase date", button("18 Oct 2026 · Choose date", false, null), false);
-        field(p, "Due / warranty / renewal date", button("14 Dec 2026 · Choose date", false, null), false);
-        EditText amount = edit("₹ 0.00", false); field(p, "Amount", amount, false);
-        section(p, "Receipt or document"); p.addView(button("▧  Attachment placeholder · Add file", false, () -> Toast.makeText(this, "Attachment placeholder", Toast.LENGTH_SHORT).show()));
-        section(p, "Reminder"); Switch reminder = new Switch(this); reminder.setText("Enable reminder · Optional"); reminder.setChecked(true); p.addView(reminder);
-        field(p, "Reminder date and time", button("7 Dec 2026 · 9:00 AM", false, null), false);
-        gap(p, 8); LinearLayout actions = row(); actions.addView(button("Cancel", false, this::goBack), weight());
-        actions.addView(button("Save Record", true, () -> { if (name.getText().toString().trim().isEmpty()) { name.setError("Please enter a record name"); name.requestFocus(); } else { currentRecordTitle = name.getText().toString().trim(); currentRecordCategory = category.getSelectedItem().toString(); currentRecordDescription = notes.getText().toString().trim(); long minor = 0; try { minor = Math.round(Double.parseDouble(amount.getText().toString().replace("₹", "").replace(",", "").trim()) * 100); } catch (Exception ignored) { } currentRecordId = store.saveRecord(currentRecordTitle, currentRecordCategory, currentRecordDescription, minor); Toast.makeText(this, "Saved on this device", Toast.LENGTH_SHORT).show(); go("details"); } }), weight()); p.addView(actions);
+        if (editing) { int position = adapter.getPosition(currentRecordCategory); if (position >= 0) category.setSelection(position); }
+        else if (prefilledCategory != null) { int position = adapter.getPosition(prefilledCategory); if (position >= 0) category.setSelection(position); }
+        field(p, "Category", category, true); EditText name = edit("e.g. Wireless headphones", false); if (editing) name.setText(currentRecordTitle); field(p, "Record name", name, true);
+        EditText notes = edit("Add helpful details", true); if (editing) notes.setText(currentRecordDescription); field(p, "Notes", notes, false);
+        long[] purchaseAt={editing?store.recordPurchaseAt(editingRecordId):0L}; Button purchaseDate=button(purchaseAt[0]==0?"Choose date":formatDate(purchaseAt[0]),false,null);
+        purchaseDate.setOnClickListener(view->{Calendar c=Calendar.getInstance();if(purchaseAt[0]>0)c.setTimeInMillis(purchaseAt[0]);new DatePickerDialog(this,(picker,year,month,day)->{Calendar selected=Calendar.getInstance();selected.set(year,month,day,12,0,0);selected.set(Calendar.MILLISECOND,0);purchaseAt[0]=selected.getTimeInMillis();purchaseDate.setText(formatDate(purchaseAt[0]));},c.get(Calendar.YEAR),c.get(Calendar.MONTH),c.get(Calendar.DAY_OF_MONTH)).show();});
+        field(p,"Purchase date",purchaseDate,false);
+        long[] dueAt = {editing ? store.recordDueAt(editingRecordId) : 0L};
+        Button dueDate = button(dueAt[0] == 0 ? "Choose date" : formatDate(dueAt[0]), false, null);
+        dueDate.setOnClickListener(view -> { Calendar c = Calendar.getInstance(); if (dueAt[0] > 0) c.setTimeInMillis(dueAt[0]); new DatePickerDialog(this, (picker, year, month, day) -> { Calendar selected = Calendar.getInstance(); selected.set(year, month, day, 12, 0, 0); selected.set(Calendar.MILLISECOND, 0); dueAt[0] = selected.getTimeInMillis(); dueDate.setText(formatDate(dueAt[0])); }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show(); });
+        field(p, "Due / warranty / renewal date", dueDate, false);
+        Spinner recurrence=new Spinner(this); android.widget.ArrayAdapter<String> recurrenceAdapter=new android.widget.ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"None","Weekly","Monthly","Quarterly","Yearly"}); recurrence.setAdapter(recurrenceAdapter); int recurrencePosition=recurrenceAdapter.getPosition(editing?store.recordRecurrence(editingRecordId):"None"); recurrence.setSelection(Math.max(0,recurrencePosition));
+        LinearLayout recurrenceField=column(); field(recurrenceField,"Repeat bill / subscription",recurrence,false); p.addView(recurrenceField);
+        Runnable updateRecurrenceVisibility=()->{String type=category.getSelectedItem().toString();boolean allowed=type.equals("Bill")||type.equals("Subscription");recurrenceField.setVisibility(allowed?View.VISIBLE:View.GONE);if(!allowed)recurrence.setSelection(0);};
+        category.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> parent,View view,int position,long id){updateRecurrenceVisibility.run();}public void onNothingSelected(AdapterView<?> parent){}}); updateRecurrenceVisibility.run();
+        EditText amount = edit("₹ 0.00", false); if (editing) { long cents = store.recordAmount(editingRecordId); if (cents > 0) amount.setText(String.format(Locale.US, "%.2f", cents / 100.0)); } field(p, "Amount", amount, false);
+        section(p, "Receipt or document"); LinearLayout attachmentRow=row(); attachmentButton=button(formAttachmentName==null?"Choose a file":formAttachmentName,false,this::chooseAttachment); attachmentRow.addView(attachmentButton,new LinearLayout.LayoutParams(0,-2,1));
+        if(formAttachmentUri!=null) attachmentRow.addView(button("Remove",false,()->{formAttachmentUri=null;formAttachmentName=null;removeAttachmentOnSave=true;showScreen("add",false);})); p.addView(attachmentRow);
+        section(p, "Reminder"); Switch reminder = new Switch(this); reminder.setText("Enable reminder"); reminder.setChecked(editing && store.recordReminderEnabled(editingRecordId)); p.addView(reminder);
+        long[] reminderAt = {editing ? store.recordReminderAt(editingRecordId) : 0L};
+        Button reminderTime = button(reminderAt[0] == 0 ? "Choose date and time" : formatDateTime(reminderAt[0]), false, null);
+        reminderTime.setOnClickListener(view -> { Calendar current = Calendar.getInstance(); if (reminderAt[0] > 0) current.setTimeInMillis(reminderAt[0]); new DatePickerDialog(this, (picker, year, month, day) -> { Calendar selected = Calendar.getInstance(); selected.set(year, month, day); new TimePickerDialog(this, (timePicker, hour, minute) -> { selected.set(Calendar.HOUR_OF_DAY, hour); selected.set(Calendar.MINUTE, minute); selected.set(Calendar.SECOND, 0); selected.set(Calendar.MILLISECOND, 0); reminderAt[0] = selected.getTimeInMillis(); reminderTime.setText(formatDateTime(reminderAt[0])); }, current.get(Calendar.HOUR_OF_DAY), current.get(Calendar.MINUTE), false).show(); }, current.get(Calendar.YEAR), current.get(Calendar.MONTH), current.get(Calendar.DAY_OF_MONTH)).show(); });
+        field(p, "Reminder date and time", reminderTime, false);
+        gap(p, 8); LinearLayout actions = row(); actions.addView(button("Cancel", false, () -> { if (editing) editingRecordId = -1L; goBack(); }), weight());
+        actions.addView(button(editing ? "Save Changes" : "Save Record", true, () -> {
+            String title = name.getText().toString().trim();
+            if (title.isEmpty()) { name.setError("Please enter a record name"); name.requestFocus(); return; }
+            String selectedRecurrence=recurrence.getSelectedItem().toString(); if(!selectedRecurrence.equals("None")&&dueAt[0]==0){dueDate.setError("Set a next due date for a recurring item");dueDate.requestFocus();return;}
+            if (reminder.isChecked() && reminderAt[0] <= System.currentTimeMillis()) { reminderTime.setError("Choose a reminder time in the future"); reminderTime.requestFocus(); return; }
+            long minor = 0; String amountText = amount.getText().toString().replace("₹", "").replace(",", "").trim();
+            if (!amountText.isEmpty()) { try { BigDecimal value = new BigDecimal(amountText); if (value.signum() < 0 || value.scale() > 2) throw new NumberFormatException(); minor = value.movePointRight(2).setScale(0, RoundingMode.UNNECESSARY).longValueExact(); } catch (Exception invalid) { amount.setError("Enter a non-negative amount with up to 2 decimal places"); amount.requestFocus(); return; } }
+            currentRecordTitle = title; currentRecordCategory = category.getSelectedItem().toString(); currentRecordDescription = notes.getText().toString().trim();
+            currentRecordDueAt = dueAt[0];
+            currentRecordPurchaseAt=purchaseAt[0]; currentRecordRecurrence=(currentRecordCategory.equals("Bill")||currentRecordCategory.equals("Subscription"))?selectedRecurrence:"None";
+            currentRecordAmount = minor;
+            currentRecordReminderAt = reminder.isChecked() ? reminderAt[0] : 0L; currentRecordReminderEnabled = reminder.isChecked();
+            if (editing) { currentRecordId = editingRecordId; if (!store.updateRecord(editingRecordId, currentRecordTitle, currentRecordCategory, currentRecordDescription, minor, dueAt[0], currentRecordReminderAt, currentRecordReminderEnabled, formAttachmentUri, formAttachmentName,purchaseAt[0],currentRecordRecurrence)) { Toast.makeText(this, "Record could not be updated", Toast.LENGTH_SHORT).show(); return; } }
+            else { currentRecordId = store.saveRecord(currentRecordTitle, currentRecordCategory, currentRecordDescription, minor, dueAt[0], currentRecordReminderAt, currentRecordReminderEnabled, formAttachmentUri, formAttachmentName,purchaseAt[0],currentRecordRecurrence); currentRecordPaid = false; }
+            if (currentRecordReminderEnabled && preferences().getBoolean("reminders_enabled",true)) OrbitReminderScheduler.schedule(this, currentRecordId, currentRecordTitle, currentRecordReminderAt);
+            else OrbitReminderScheduler.cancel(this, currentRecordId);
+            removeAttachmentOnSave = false;
+            editingRecordId = -1L; Toast.makeText(this, editing ? "Changes saved" : "Saved on this device", Toast.LENGTH_SHORT).show(); go("details");
+            prefilledCategory = null;
+        }), weight()); p.addView(actions);
         return v;
     }
     private View libraryScreen() {
@@ -253,39 +396,58 @@ public class MainActivity extends Activity {
     }
     private View billsScreen() {
         LinearLayout v = page("RECURRING OBLIGATIONS", "Bills & subscriptions", false); LinearLayout p = body(v);
-        summaries(p, new String[][]{{"₹2,439*","Monthly total"},{"26 Oct","Next payment"},{"05","Active items"}}, null);
-        p.addView(text("*Illustrative sample amount", 10, false, MUTED)); chips(p, new String[]{"All", "Bills", "Subscriptions"});
-        section(p, "Upcoming"); listRow(p, "₹", "Electricity", "Bill · Monthly · Due 23 Oct · ₹1,240", "Due", "details"); p.addView(button("Mark as Paid", false, () -> Toast.makeText(this, "Payment status updated in this demo", Toast.LENGTH_SHORT).show()));
-        listRow(p, "↻", "Cloud storage", "Subscription · Monthly · Renews 26 Oct · ₹199", "Upcoming", "details");
-        listRow(p, "₹", "Internet service", "Bill · Monthly · Due 30 Oct · ₹1,000", "Upcoming", "details");
-        p.addView(paragraph("Orbit records status for this demonstration. It does not make payments.")); gap(p, 8);
-        p.addView(button("＋ Add Bill / Subscription", true, () -> go("add"))); return v;
+        String category = selectedCategory.equals("Bills") ? "Bill" : selectedCategory.equals("Subscriptions") ? "Subscription" : "All";
+        android.database.Cursor c = store.obligations(category); long total = 0, nextDue = 0; int count = 0;
+        try { while (c.moveToNext()) { total += c.getLong(4); long due = c.getLong(5); if (nextDue == 0 && due > 0) nextDue = due; count++; } } finally { c.close(); }
+        summaries(p, new String[][]{{"₹"+String.format(Locale.US,"%.2f",total/100.0),"Saved obligations"},{nextDue == 0 ? "—" : formatDate(nextDue),"Next due date"},{String.format(Locale.US,"%02d",count),"Active items"}}, null);
+        chips(p, new String[]{"All", "Bills", "Subscriptions"});
+        section(p, "Saved bills and subscriptions"); LinearLayout rows = column(); p.addView(rows); populateObligations(rows, category);
+        if (rows.getChildCount() == 0) emptyState(p, "No bills or subscriptions yet", "Add one with an amount and due date to see it here.", null, null);
+        p.addView(paragraph("Orbit records payment status. It does not make payments.")); gap(p, 8);
+        p.addView(button("＋ Add Bill / Subscription", true, () -> { prefilledCategory="Bill"; go("add"); })); return v;
+    }
+    private void populateObligations(LinearLayout destination, String category) {
+        android.database.Cursor c = store.obligations(category);
+        try { while (c.moveToNext()) {
+            long id=c.getLong(0), amount=c.getLong(4), due=c.getLong(5), reminderAt=c.getLong(7); String title=c.getString(1), type=c.getString(2), desc=c.getString(3), recurrence=c.getString(9); boolean paid=c.getInt(6)==1, reminderEnabled=c.getInt(8)==1;
+            String detail=type+(desc==null||desc.trim().isEmpty()?"":" · "+desc); if(!"None".equals(recurrence))detail+=" · "+recurrence; if(due>0) detail += " · Due "+formatDate(due); if(amount>0) detail += " · ₹"+String.format(Locale.US,"%.2f",amount/100.0);
+            listRow(destination,type.equals("Bill")?"₹":"↻",title,detail,paid?"Paid":due==0?"No date":(beforeToday(due)?"Overdue":"Due"),"details");
+            View item=destination.getChildAt(destination.getChildCount()-2); item.setOnClickListener(view->{currentRecordId=id;currentRecordTitle=title;currentRecordCategory=type;currentRecordDescription=desc==null?"":desc;currentRecordDueAt=due;currentRecordAmount=amount;currentRecordPaid=paid;currentRecordReminderAt=reminderAt;currentRecordReminderEnabled=reminderEnabled;go("details");});
+            destination.addView(button(paid?"Mark as Unpaid":"Mark as Paid",false,()->{
+                if(paid){store.setPaid(id,false);Toast.makeText(this,"Marked unpaid",Toast.LENGTH_SHORT).show();}
+                else {long nextDue=store.markPaid(id);if(nextDue>0){long nextReminder=reminderAt>0?nextDue+(reminderAt-due):0L;if(reminderEnabled&&preferences().getBoolean("reminders_enabled",true)&&nextReminder>System.currentTimeMillis())OrbitReminderScheduler.schedule(this,id,title,nextReminder);else OrbitReminderScheduler.cancel(this,id);Toast.makeText(this,"Next due · "+formatDate(nextDue),Toast.LENGTH_SHORT).show();}else{OrbitReminderScheduler.cancel(this,id);Toast.makeText(this,"Marked paid",Toast.LENGTH_SHORT).show();}}
+                showScreen("bills",false);
+            }));
+        }} finally { c.close(); }
     }
     private View shoppingScreen() {
         LinearLayout v = page("A SIMPLE TO-DO LIST", "Shopping List", false); LinearLayout p = body(v); EditText input = edit("Add an item…", false);
-        LinearLayout add = row(); add.addView(input, new LinearLayout.LayoutParams(0, dp(46), 1)); add.addView(button("Add", true, () -> { String value = input.getText().toString().trim(); if (!value.isEmpty()) { store.addItem(value); shoppingItems.add(value); input.setText(""); showScreen("shopping", false); } })); p.addView(add);
-        section(p, "To buy"); LinearLayout openList = column(); for (String item : shoppingItems) checkRow(openList, item, false); p.addView(openList);
-        section(p, "Completed"); LinearLayout doneList = column(); for (String item : completedItems) checkRow(doneList, item, true); p.addView(doneList);
-        gap(p, 10); p.addView(button("Clear completed", false, () -> { store.clearCompleted(); completedItems.clear(); showScreen("shopping", false); }));
-        if (shoppingItems.isEmpty() && completedItems.isEmpty()) emptyState(p, "Your list is clear", "Add items as you think of them.", null, null);
+        LinearLayout add = row(); add.addView(input, new LinearLayout.LayoutParams(0, dp(46), 1)); add.addView(button("Add", true, () -> { String value = input.getText().toString().trim(); if (!value.isEmpty()) { store.addItem(value); input.setText(""); showScreen("shopping", false); } })); p.addView(add);
+        section(p, "To buy"); LinearLayout openList = column(); populateShopping(openList, false); p.addView(openList);
+        section(p, "Completed"); LinearLayout doneList = column(); populateShopping(doneList, true); p.addView(doneList);
+        gap(p, 10); p.addView(button("Clear completed", false, () -> { store.clearCompleted(); showScreen("shopping", false); }));
+        if (openList.getChildCount() == 0 && doneList.getChildCount() == 0) emptyState(p, "Your list is clear", "Add items as you think of them.", null, null);
         return v;
     }
-    private void checkRow(LinearLayout p, String item, boolean done) {
+    private void populateShopping(LinearLayout p, boolean done) { android.database.Cursor c = store.items(done); try { while (c.moveToNext()) checkRow(p, c.getLong(0), c.getString(1), done); } finally { c.close(); } }
+    private void checkRow(LinearLayout p, long id, String item, boolean done) {
         CheckBox cb = new CheckBox(this); cb.setText(item); cb.setTextSize(13); cb.setTextColor(done ? MUTED : INK); cb.setButtonTintList(android.content.res.ColorStateList.valueOf(0xff555555)); cb.setChecked(done); cb.setMinHeight(dp(48)); p.addView(cb);
-        cb.setOnCheckedChangeListener((button, checked) -> { store.completeItem(item, checked); if (checked) { shoppingItems.remove(item); if (!completedItems.contains(item)) completedItems.add(item); } else { completedItems.remove(item); if (!shoppingItems.contains(item)) shoppingItems.add(item); } showScreen("shopping", false); });
+        cb.setOnCheckedChangeListener((button, checked) -> { store.completeItem(id, checked); showScreen("shopping", false); });
     }
     private View detailsScreen() {
-        LinearLayout v = page("PURCHASE · SAVED RECORD", "Record Details", true); LinearLayout p = body(v);
-        TextView state = text("▧  " + currentRecordCategory + "                                  Saved", 13, true, INK); pad(state, 12, 12, 12, 12); state.setBackground(outline(PANEL, LINE, 11)); p.addView(state);
-        section(p, "Record information"); LinearLayout c = card(p); detailTitle = text(currentRecordTitle, 13, true, INK); c.addView(detailTitle); c.addView(text("Stored on this device", 12, false, MUTED)); c.addView(text(currentRecordDescription.isEmpty() ? "No notes added." : currentRecordDescription, 12, false, MUTED));
-        section(p, "Attachment"); p.addView(button("▤  Receipt_oct18.pdf · Attachment placeholder", false, null));
-        section(p, "Reminder"); p.addView(paragraph("Warranty expiry · 7 December 2026, 9:00 AM")); p.addView(button("Edit reminder", false, () -> go("settings")));
+        LinearLayout v = page(currentRecordCategory.toUpperCase(Locale.ROOT)+" · SAVED RECORD", "Record Details", true); LinearLayout p = body(v);
+        TextView state = text("▧  " + currentRecordCategory + "                                  " + (currentRecordPaid ? "Paid" : "Saved"), 13, true, INK); pad(state, 12, 12, 12, 12); state.setBackground(outline(PANEL, LINE, 11)); p.addView(state);
+        long purchaseAt=store.recordPurchaseAt(currentRecordId); String recurrence=store.recordRecurrence(currentRecordId);
+        section(p, "Record information"); LinearLayout c = card(p); detailTitle = text(currentRecordTitle, 13, true, INK); c.addView(detailTitle); c.addView(text("Stored on this device", 12, false, MUTED)); if(currentRecordAmount>0) c.addView(text("Amount · ₹"+String.format(Locale.US,"%.2f",currentRecordAmount/100.0),12,true,INK)); if(purchaseAt>0) c.addView(text("Purchase date · "+formatDate(purchaseAt),12,false,MUTED)); if(currentRecordDueAt>0) c.addView(text("Next due date · "+formatDate(currentRecordDueAt),12,false,MUTED)); if(!"None".equals(recurrence)) c.addView(text("Repeats · "+recurrence,12,false,MUTED)); c.addView(text(currentRecordDescription.isEmpty() ? "No notes added." : currentRecordDescription, 12, false, MUTED));
+        section(p, "Attachment"); String attachmentUri=store.recordAttachmentUri(currentRecordId), attachmentName=store.recordAttachmentName(currentRecordId);
+        if(attachmentUri==null||attachmentUri.isEmpty()) p.addView(paragraph("No file attached.")); else p.addView(button("Open · "+(attachmentName==null?"Attached file":attachmentName),false,()->openAttachment(attachmentUri)));
+        section(p, "Reminder"); p.addView(paragraph(currentRecordReminderEnabled ? "Reminder scheduled · "+formatDateTime(currentRecordReminderAt) : "No reminder scheduled.")); p.addView(button("Edit reminder", false, () -> { editingRecordId=currentRecordId; go("add"); }));
         section(p, "Related records"); p.addView(paragraph("This warranty belongs to the headphones purchase.")); listRow(p, "◷", "Headphones warranty", "Warranty · Ends 14 Dec 2026", "", "details");
-        section(p, "Actions"); LinearLayout buttons = row(); buttons.addView(button("Edit", false, () -> go("add")), weight()); buttons.addView(button("Set Reminder", false, () -> go("settings")), weight()); buttons.addView(button("Delete", false, this::confirmDelete), weight()); p.addView(buttons); return v;
+        section(p, "Actions"); LinearLayout buttons = row(); buttons.addView(button("Edit", false, () -> { editingRecordId = currentRecordId; go("add"); }), weight()); buttons.addView(button("Set Reminder", false, () -> { editingRecordId=currentRecordId; go("add"); }), weight()); buttons.addView(button("Delete", false, this::confirmDelete), weight()); p.addView(buttons); return v;
     }
     private void confirmDelete() {
         new AlertDialog.Builder(this).setTitle("Delete this record?").setMessage("This removes the saved record from this device.")
-                .setNegativeButton("Cancel", (d,w) -> d.dismiss()).setPositiveButton("Delete record", (d,w) -> { store.deleteRecord(currentRecordId); Toast.makeText(this, "Record deleted", Toast.LENGTH_SHORT).show(); showScreen("library", false); }).show();
+                .setNegativeButton("Cancel", (d,w) -> d.dismiss()).setPositiveButton("Delete record", (d,w) -> { OrbitReminderScheduler.cancel(this,currentRecordId); store.deleteRecord(currentRecordId); Toast.makeText(this, "Record deleted", Toast.LENGTH_SHORT).show(); showScreen("library", false); }).show();
     }
     private View searchScreen() {
         LinearLayout v = page("FIND A SAVED ITEM", "Search", true); LinearLayout p = body(v); EditText query = edit("Search records, notes…", false); p.addView(query);
@@ -302,29 +464,46 @@ public class MainActivity extends Activity {
     }
     private void populateRecords(LinearLayout destination, String query, String category) {
         android.database.Cursor c=store.records(query,category); int count=0;
-        try { while(c.moveToNext()) { long id=c.getLong(0); String title=c.getString(1), type=c.getString(2), description=c.getString(3); long amount=c.getLong(4); String detail=type+" · "+(description==null?"":description); if(amount>0) detail += " · ₹"+String.format(Locale.US,"%.2f",amount/100.0);
-            int before=destination.getChildCount(); listRow(destination,"▤",title,detail,"","details"); View row=destination.getChildAt(before); row.setOnClickListener(v->{currentRecordId=id;currentRecordTitle=title;currentRecordCategory=type;currentRecordDescription=description==null?"":description;go("details");}); count++;
+        try { while(c.moveToNext()) { long id=c.getLong(0); String title=c.getString(1), type=c.getString(2), description=c.getString(3); long amount=c.getLong(4), dueAt=c.getLong(5), reminderAt=c.getLong(7); boolean paid=c.getInt(6)==1, reminderEnabled=c.getInt(8)==1; String detail=type+" · "+(description==null?"":description); if(amount>0) detail += " · ₹"+String.format(Locale.US,"%.2f",amount/100.0); if(dueAt>0) detail += " · Due "+formatDate(dueAt);
+            int before=destination.getChildCount(); listRow(destination,"▤",title,detail,"","details"); View row=destination.getChildAt(before); row.setOnClickListener(v->{currentRecordId=id;currentRecordTitle=title;currentRecordCategory=type;currentRecordDescription=description==null?"":description;currentRecordDueAt=dueAt;currentRecordAmount=amount;currentRecordPaid=paid;currentRecordReminderAt=reminderAt;currentRecordReminderEnabled=reminderEnabled;go("details");}); count++;
         }} finally { c.close(); }
     }
     private View insightsScreen() {
-        LinearLayout v = page("A QUICK LOOK AHEAD", "Insights", false); LinearLayout p = body(v); chips(p, new String[]{"This month", "Next month"});
-        p.addView(text("Illustrative figures · Not calculated from user data", 10, false, MUTED)); gap(p, 8);
-        summaries(p, new String[][]{{"₹2,439","Monthly recurring"},{"03","Upcoming payments"},{"01","Overdue items"}}, null);
-        section(p, "Recurring costs · Illustrative"); LinearLayout chart = card(p); chart.setOrientation(LinearLayout.HORIZONTAL); chart.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL); chart.setMinimumHeight(dp(150));
-        int[] heights = {55, 86, 112, 75}; String[] months = {"Aug","Sep","Oct","Nov"};
-        for (int i=0; i<heights.length; i++) { LinearLayout g = column(); g.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL); View bar = new View(this); bar.setBackground(outline(i==2 ? 0xff888888 : 0xffc4c4c4, 0xff999999, 4)); g.addView(bar, new LinearLayout.LayoutParams(dp(28), dp(heights[i]))); TextView m=text(months[i],9,false,MUTED); m.setGravity(Gravity.CENTER); g.addView(m); chart.addView(g, new LinearLayout.LayoutParams(0, dp(142), 1)); }
-        section(p, "Upcoming renewals"); listRow(p, "↻", "Cloud storage", "Subscription · 26 Oct · ₹199", "", "details"); listRow(p, "◷", "Headphones warranty", "Warranty · 14 Dec", "", "details"); p.addView(button("View bills and subscriptions", false, () -> go("bills"))); return v;
+        LinearLayout v = page("YOUR SAVED OBLIGATIONS", "Insights", false); LinearLayout p = body(v);
+        LinearLayout filters=row(); filters.setPadding(0,dp(8),0,dp(8));
+        filters.addView(chip("This month",insightsPeriod.equals("This month"),()->{insightsPeriod="This month";showScreen("insights",false);}));
+        filters.addView(chip("Next month",insightsPeriod.equals("Next month"),()->{insightsPeriod="Next month";showScreen("insights",false);})); p.addView(filters);
+        Calendar start=Calendar.getInstance(); start.set(Calendar.DAY_OF_MONTH,1); start.set(Calendar.HOUR_OF_DAY,0); start.set(Calendar.MINUTE,0); start.set(Calendar.SECOND,0); start.set(Calendar.MILLISECOND,0); if(insightsPeriod.equals("Next month")) start.add(Calendar.MONTH,1); long selectedStart=start.getTimeInMillis(); Calendar finish=(Calendar)start.clone(); finish.add(Calendar.MONTH,1); long selectedEnd=finish.getTimeInMillis();
+        long[] values={0,0,0}; android.database.Cursor c=store.obligations("All");
+        try { while(c.moveToNext()) { long amount=c.getLong(4),due=c.getLong(5); boolean paid=c.getInt(6)==1; values[0]+=amount; if(!paid&&due>0&&beforeToday(due)) values[2]++; if(!paid&&due>=selectedStart&&due<selectedEnd) values[1]+=amount; } } finally { c.close(); }
+        String periodLabel=insightsPeriod.equals("This month")?"Due this month":"Due next month";
+        summaries(p,new String[][]{{formatMoney(values[0]),"Saved obligations"},{formatMoney(values[1]),periodLabel},{String.format(Locale.US,"%02d",values[2]),"Overdue unpaid"}},null);
+        section(p,"Due amount by month"); LinearLayout chart=card(p); chart.setOrientation(LinearLayout.HORIZONTAL); chart.setGravity(Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL); chart.setMinimumHeight(dp(160));
+        long nextAmount=insightsPeriod.equals("This month")?sumDueInMonth(1):sumDueInMonth(2); long currentAmount=insightsPeriod.equals("This month")?values[1]:sumDueInMonth(1); long maxAmount=Math.max(currentAmount,nextAmount);
+        addInsightBar(chart,currentAmount,maxAmount,insightsPeriod); addInsightBar(chart,nextAmount,maxAmount,insightsPeriod.equals("This month")?"Next month":"Following month");
+        section(p,"Unpaid items · "+insightsPeriod); LinearLayout items=column(); p.addView(items); populateInsightItems(items,selectedStart,selectedEnd);
+        if(items.getChildCount()==0) p.addView(paragraph("No unpaid bills or subscriptions are due during this period."));
+        p.addView(paragraph("Totals use saved amounts, due dates, and recurrence schedules. Orbit does not make payments.")); p.addView(button("View bills and subscriptions",false,()->go("bills"))); return v;
     }
+    private String formatMoney(long minor) { return "₹"+String.format(Locale.US,"%.2f",minor/100.0); }
+    private long sumDueInMonth(int offset) { Calendar start=Calendar.getInstance(); start.set(Calendar.DAY_OF_MONTH,1); start.set(Calendar.HOUR_OF_DAY,0); start.set(Calendar.MINUTE,0); start.set(Calendar.SECOND,0); start.set(Calendar.MILLISECOND,0); start.add(Calendar.MONTH,offset); long from=start.getTimeInMillis(); Calendar end=(Calendar)start.clone(); end.add(Calendar.MONTH,1); long total=0; android.database.Cursor c=store.obligations("All"); try { while(c.moveToNext()) { long due=c.getLong(5); if(c.getInt(6)==0&&due>=from&&due<end.getTimeInMillis()) total+=c.getLong(4); } } finally { c.close(); } return total; }
+    private void addInsightBar(LinearLayout chart,long amount,long max,String label) { LinearLayout group=column(); group.setGravity(Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL); TextView value=text(formatMoney(amount),10,true,INK); value.setGravity(Gravity.CENTER); group.addView(value); int h=max==0?dp(4):Math.max(dp(4),(int)(dp(100)*(double)amount/max)); View bar=new View(this); bar.setBackground(outline(0xff9aa8b8,0xff7d8998,5)); group.addView(bar,new LinearLayout.LayoutParams(dp(32),h)); TextView caption=text(label,10,false,MUTED); caption.setGravity(Gravity.CENTER); group.addView(caption); chart.addView(group,new LinearLayout.LayoutParams(0,dp(145),1)); }
+    private void populateInsightItems(LinearLayout destination,long from,long to) { android.database.Cursor c=store.obligations("All"); try { while(c.moveToNext()) { long id=c.getLong(0),amount=c.getLong(4),due=c.getLong(5),reminderAt=c.getLong(7); String title=c.getString(1),type=c.getString(2),desc=c.getString(3); boolean paid=c.getInt(6)==1,reminderEnabled=c.getInt(8)==1; if(paid||due<from||due>=to)continue; String detail=type+" · "+formatDate(due)+(amount>0?" · "+formatMoney(amount):""); listRow(destination,type.equals("Bill")?"₹":"↻",title,detail,beforeToday(due)?"Overdue":"Upcoming","details"); View item=destination.getChildAt(destination.getChildCount()-2); item.setOnClickListener(view->openRecord(id,title,type,desc,amount,due,paid,reminderAt,reminderEnabled)); } } finally { c.close(); } }
     private View settingsScreen() {
         LinearLayout v = page("MAKE ORBIT YOURS", "Settings", false); LinearLayout p = body(v);
-        section(p, "Notifications"); settingSwitch(p, "Reminders", "Alerts for important dates", true); settingSwitch(p, "Quiet hours", "Pause alerts overnight", false); listRow(p, "◷", "Reminder timing", "Default: one day before", "", "settings");
-        section(p, "Data"); placeholder(p, "Backup data", "Design placeholder · Not connected"); placeholder(p, "Restore data", "Design placeholder · Not connected");
+        section(p, "Notifications"); settingToggle(p,"Reminders","Alerts for dates saved on this device","reminders_enabled",true); settingToggle(p,"Quiet hours","Hold alerts overnight until 7:00 AM","quiet_hours",false);
+        section(p, "Data"); p.addView(button("Export Orbit backup",false,this::startBackupExport)); p.addView(button("Restore from backup",false,this::startBackupRestore)); p.addView(paragraph("Backup includes records, shopping list, and attachment references. Original attached files stay in their current location."));
         section(p, "Privacy & security"); settingSwitch(p, "App lock", "Proposed · Not implemented", false); placeholder(p, "Privacy information", "Proposed information page");
         section(p, "Appearance"); Switch theme = new Switch(this); theme.setText("Use dark appearance (preview only)"); p.addView(theme);
         section(p, "About Orbit"); p.addView(paragraph("Personal Life Operations Hub\nVersion placeholder · 0.1 wireframe")); return v;
     }
     private void settingSwitch(LinearLayout p, String name, String detail, boolean checked) {
         LinearLayout r = row(); LinearLayout copy = column(); copy.addView(text(name,13,true,INK)); copy.addView(text(detail,10,false,MUTED)); r.addView(copy,new LinearLayout.LayoutParams(0,-2,1)); Switch s=new Switch(this); s.setChecked(checked); r.addView(s); p.addView(r); View d=new View(this); d.setBackgroundColor(0xffe5e5e5); p.addView(d,new LinearLayout.LayoutParams(-1,dp(1)));
+    }
+    private SharedPreferences preferences() { return getSharedPreferences("orbit_settings",MODE_PRIVATE); }
+    private void settingToggle(LinearLayout p,String name,String detail,String key,boolean defaultValue) {
+        LinearLayout r=row(); LinearLayout copy=column(); copy.addView(text(name,13,true,INK));copy.addView(text(detail,10,false,MUTED));r.addView(copy,new LinearLayout.LayoutParams(0,-2,1));Switch s=new Switch(this);s.setChecked(preferences().getBoolean(key,defaultValue));r.addView(s);p.addView(r);View divider=new View(this);divider.setBackgroundColor(0xffe5e5e5);p.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
+        s.setOnCheckedChangeListener((button,checked)->{preferences().edit().putBoolean(key,checked).apply();if("reminders_enabled".equals(key))OrbitReminderScheduler.syncAll(this,store,checked);});
     }
     private void placeholder(LinearLayout p, String title, String detail) { LinearLayout r=row(); LinearLayout copy=column(); copy.addView(text(title,13,true,INK)); copy.addView(text(detail,10,false,MUTED)); r.addView(copy,new LinearLayout.LayoutParams(0,-2,1)); r.addView(text("›",20,false,MUTED)); pad(r,0,12,0,12); p.addView(r); r.setOnClickListener(v->Toast.makeText(this,"Design placeholder",Toast.LENGTH_SHORT).show()); }
     private void searchAction() { go("search"); }
