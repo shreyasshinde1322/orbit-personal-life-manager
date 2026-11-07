@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 3600 2545" role="img" aria-labelledby="title description">
+  <title id="title">ORBIT – ENTITY RELATIONSHIP DIAGRAM</title>
+  <desc id="description">Chen ER diagram for the Orbit personal life operations hub. It contains seven entities, all specified attributes, four one-to-many HAS relationships, and standalone shopping items, notes, and app settings.</desc>
+  <defs>
+    <style>
+      .page{fill:#fff}.ink{fill:#17263b}.title{font:700 44px Arial, sans-serif;fill:#17263b;letter-spacing:1px}.subtitle{font:400 24px Arial,sans-serif;fill:#526174}.small{font:400 17px Arial,sans-serif;fill:#405168}.section-label{font:700 18px Arial,sans-serif;fill:#607087;letter-spacing:2px}.entity{fill:#eaf1f8;stroke:#17263b;stroke-width:3}.entity-text{font:700 22px Arial,sans-serif;fill:#17263b;letter-spacing:1px}.oval{fill:#fff;stroke:#31445d;stroke-width:2}.attr-name{font:600 16px Arial,sans-serif;fill:#1f2e42}.attr-type{font:400 13px Arial,sans-serif;fill:#657388}.relation{fill:#fff;stroke:#17263b;stroke-width:3}.rel-text{font:700 18px Arial,sans-serif;fill:#17263b;letter-spacing:1px}.connector{fill:none;stroke:#35465c;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.cardinality{font:700 18px Arial,sans-serif;fill:#17263b}.note-box{fill:#f8fafc;stroke:#8291a3;stroke-width:1.5}.note-head{font:700 17px Arial,sans-serif;fill:#24364d}.note-text{font:400 15px Arial,sans-serif;fill:#45556a}.legend-text{font:400 15px Arial,sans-serif;fill:#33445a}.footer{font:400 15px Arial,sans-serif;fill:#68778a}.legend-entity{fill:#eaf1f8;stroke:#17263b;stroke-width:2}.legend-oval{fill:#fff;stroke:#31445d;stroke-width:1.8}.legend-diamond{fill:#fff;stroke:#17263b;stroke-width:2}
+    </style>
+    <g id="entity"><rect class="entity" x="-160" y="-50" width="320" height="100" rx="2"/></g>
+    <g id="relation"><path class="relation" d="M0,-43 L76,0 L0,43 L-76,0 Z"/></g>
+  </defs>
+  <rect class="page" x="0" y="0" width="3600" height="2545"/>
+  <text class="title" x="1800" y="62" text-anchor="middle">ORBIT – ENTITY RELATIONSHIP DIAGRAM</text>
+  <text class="subtitle" x="1800" y="101" text-anchor="middle">Database Design for Personal Life Operations Hub</text>
+  <text class="section-label" x="600" y="139" text-anchor="middle">PERSONAL RECORDS</text>
+  <text class="section-label" x="1800" y="139" text-anchor="middle">FILE &amp; SCHEDULE SUPPORT</text>
+  <text class="section-label" x="3000" y="139" text-anchor="middle">FINANCIAL OBLIGATIONS</text>
+
+  <!-- Attribute-to-entity connectors: the short branches are routed behind the attribute ovals. -->
+  <g class="connector">
+    <!-- Attribute branches meet a short trunk in the clear gap between oval columns. -->
+    <path d="M425 151 V515 M715 151 V515 M405 180 H425 M405 250 H425 M405 320 H425 M405 390 H425 M405 460 H425 M445 180 H425 M445 250 H425 M445 320 H425 M445 390 H425 M445 460 H425 M735 180 H715 M735 250 H715 M735 320 H715"/><path d="M425 515 H480 M715 515 H710"/>
+    <path d="M1650 151 V515 M1950 151 V515 M1635 180 H1650 M1635 250 H1650 M1635 320 H1650 M1675 180 H1650 M1675 250 H1650 M1675 320 H1650 M1965 180 H1950 M1965 250 H1950"/><path d="M1650 515 H1680 M1950 515 H1920"/>
+    <path d="M2885 151 V515 M3175 151 V515 M2865 180 H2885 M2865 250 H2885 M2865 320 H2885 M2865 390 H2885 M2865 460 H2885 M2905 180 H2885 M2905 250 H2885 M2905 320 H2885 M2905 390 H2885 M3195 180 H3175 M3195 250 H3175 M3195 320 H3175"/><path d="M2885 515 H2890 M3175 515 H3140"/>
+    <!-- REMINDERS attributes. -->
+    <path d="M1800 1275 V1680 M1695 1455 H1800 M1695 1530 H1800 M1695 1605 H1800 M1695 1680 H1800 M1905 1455 H1800 M1905 1530 H1800 M1905 1605 H1800 M1905 1680 H1800"/>
+    <!-- Independent entities: private attribute trunks, no inter-entity links. -->
+    <path d="M600 1831 V2130 M425 1860 H600 M425 1935 H600 M425 2010 H600 M755 1860 H600 M755 1935 H600 M755 2010 H600"/>
+    <path d="M1800 1831 V2130 M1635 1860 H1800 M1635 1935 H1800 M1635 2010 H1800 M1965 1860 H1800 M1965 1935 H1800 M1965 2010 H1800"/>
+    <path d="M3000 1831 V2130 M2905 1860 H3000 M3095 1860 H3000 M2905 1935 H3000"/>
+    <!-- The four HAS relationships; independent entities have no relationship connectors. -->
+    <path d="M760 565 L1122 565 M1278 565 L1640 565 M1960 565 L2322 565 M2478 565 L2840 565"/>
+    <path d="M690 615 L1124 1180 M1290 1225 L1640 1225 M2910 615 L2476 1180 M2310 1225 L1960 1225"/>
+  </g>
+
+  <!-- RECORDS attribute ovals -->
+  <g text-anchor="middle">
+    <g><ellipse class="oval" cx="280" cy="180" rx="125" ry="29"/><text x="280" y="176"><tspan class="attr-name" text-decoration="underline">record_id</tspan><tspan class="attr-name"> (PK)</tspan><tspan class="attr-type" x="280" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="570" cy="180" rx="125" ry="29"/><text x="570" y="176"><tspan class="attr-name">title</tspan><tspan class="attr-type" x="570" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="860" cy="180" rx="125" ry="29"/><text x="860" y="176"><tspan class="attr-name">category</tspan><tspan class="attr-type" x="860" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="280" cy="250" rx="125" ry="29"/><text x="280" y="246"><tspan class="attr-name">description</tspan><tspan class="attr-type" x="280" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="570" cy="250" rx="125" ry="29"/><text x="570" y="246"><tspan class="attr-name">purchase_date</tspan><tspan class="attr-type" x="570" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="860" cy="250" rx="125" ry="29"/><text x="860" y="246"><tspan class="attr-name">expiry_date</tspan><tspan class="attr-type" x="860" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="280" cy="320" rx="125" ry="29"/><text x="280" y="316"><tspan class="attr-name">amount_minor_units</tspan><tspan class="attr-type" x="280" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="570" cy="320" rx="125" ry="29"/><text x="570" y="316"><tspan class="attr-name">currency_code</tspan><tspan class="attr-type" x="570" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="860" cy="320" rx="125" ry="29"/><text x="860" y="316"><tspan class="attr-name">merchant</tspan><tspan class="attr-type" x="860" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="280" cy="390" rx="125" ry="29"/><text x="280" y="386"><tspan class="attr-name">created_at</tspan><tspan class="attr-type" x="280" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="570" cy="390" rx="125" ry="29"/><text x="570" y="386"><tspan class="attr-name">updated_at</tspan><tspan class="attr-type" x="570" dy="19">INTEGER</tspan></text></g>
+
+    <!-- ATTACHMENTS attribute ovals -->
+    <g><ellipse class="oval" cx="1510" cy="180" rx="125" ry="29"/><text x="1510" y="176"><tspan class="attr-name" text-decoration="underline">attachment_id</tspan><tspan class="attr-name"> (PK)</tspan><tspan class="attr-type" x="1510" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="1800" cy="180" rx="125" ry="29"/><text x="1800" y="176"><tspan class="attr-name">record_id (FK)</tspan><tspan class="attr-type" x="1800" dy="19">TEXT · nullable*</tspan></text></g>
+    <g><ellipse class="oval" cx="2090" cy="180" rx="125" ry="29"/><text x="2090" y="176"><tspan class="attr-name">obligation_id (FK)</tspan><tspan class="attr-type" x="2090" dy="19">TEXT · nullable*</tspan></text></g>
+    <g><ellipse class="oval" cx="1510" cy="250" rx="125" ry="29"/><text x="1510" y="246"><tspan class="attr-name">file_name</tspan><tspan class="attr-type" x="1510" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="1800" cy="250" rx="125" ry="29"/><text x="1800" y="246"><tspan class="attr-name">file_uri</tspan><tspan class="attr-type" x="1800" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="2090" cy="250" rx="125" ry="29"/><text x="2090" y="246"><tspan class="attr-name">mime_type</tspan><tspan class="attr-type" x="2090" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="1510" cy="320" rx="125" ry="29"/><text x="1510" y="316"><tspan class="attr-name">file_size</tspan><tspan class="attr-type" x="1510" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="2090" cy="320" rx="125" ry="29"/><text x="2090" y="316"><tspan class="attr-name">added_at</tspan><tspan class="attr-type" x="2090" dy="19">INTEGER</tspan></text></g>
+
+    <!-- OBLIGATIONS attribute ovals -->
+    <g><ellipse class="oval" cx="2740" cy="180" rx="125" ry="29"/><text x="2740" y="176"><tspan class="attr-name" text-decoration="underline">obligation_id</tspan><tspan class="attr-name"> (PK)</tspan><tspan class="attr-type" x="2740" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="3030" cy="180" rx="125" ry="29"/><text x="3030" y="176"><tspan class="attr-name">title</tspan><tspan class="attr-type" x="3030" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="3320" cy="180" rx="125" ry="29"/><text x="3320" y="176"><tspan class="attr-name">type</tspan><tspan class="attr-type" x="3320" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="2740" cy="250" rx="125" ry="29"/><text x="2740" y="246"><tspan class="attr-name">amount_minor_units</tspan><tspan class="attr-type" x="2740" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="3030" cy="250" rx="125" ry="29"/><text x="3030" y="246"><tspan class="attr-name">currency_code</tspan><tspan class="attr-type" x="3030" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="3320" cy="250" rx="125" ry="29"/><text x="3320" y="246"><tspan class="attr-name">frequency</tspan><tspan class="attr-type" x="3320" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="2740" cy="320" rx="125" ry="29"/><text x="2740" y="316"><tspan class="attr-name">due_date</tspan><tspan class="attr-type" x="2740" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="3030" cy="320" rx="125" ry="29"/><text x="3030" y="316"><tspan class="attr-name">status</tspan><tspan class="attr-type" x="3030" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="3320" cy="320" rx="125" ry="29"/><text x="3320" y="316"><tspan class="attr-name">provider</tspan><tspan class="attr-type" x="3320" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="2740" cy="390" rx="125" ry="29"/><text x="2740" y="386"><tspan class="attr-name">auto_renew</tspan><tspan class="attr-type" x="2740" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="3030" cy="390" rx="125" ry="29"/><text x="3030" y="386"><tspan class="attr-name">notes</tspan><tspan class="attr-type" x="3030" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="3320" cy="390" rx="125" ry="29"/><text x="3320" y="386"><tspan class="attr-name">created_at</tspan><tspan class="attr-type" x="3320" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="2740" cy="460" rx="125" ry="29"/><text x="2740" y="456"><tspan class="attr-name">updated_at</tspan><tspan class="attr-type" x="2740" dy="19">INTEGER</tspan></text></g>
+  </g>
+
+  <!-- Top-row entities and their two Chen relationship diamonds. -->
+  <use href="#entity" x="600" y="565"/><text class="entity-text" x="600" y="573" text-anchor="middle">RECORDS</text>
+  <use href="#entity" x="1800" y="565"/><text class="entity-text" x="1800" y="573" text-anchor="middle">ATTACHMENTS</text>
+  <use href="#entity" x="3000" y="565"/><text class="entity-text" x="3000" y="573" text-anchor="middle">OBLIGATIONS</text>
+  <use href="#relation" x="1200" y="565"/><text class="rel-text" x="1200" y="571" text-anchor="middle">HAS</text>
+  <use href="#relation" x="2400" y="565"/><text class="rel-text" x="2400" y="571" text-anchor="middle">HAS</text>
+  <text class="cardinality" x="782" y="542">1</text>
+  <text class="cardinality" x="1584" y="542">N</text><text class="cardinality" x="2800" y="542">1</text>
+  <text class="cardinality" x="1968" y="542">N</text>
+
+  <!-- Record and obligation reminders relationships; only the four specified HAS diamonds are present. -->
+  <use href="#relation" x="1200" y="1225"/><text class="rel-text" x="1200" y="1231" text-anchor="middle">HAS</text>
+  <use href="#relation" x="2400" y="1225"/><text class="rel-text" x="2400" y="1231" text-anchor="middle">HAS</text>
+  <text class="cardinality" x="700" y="785">1</text>
+  <text class="cardinality" x="2895" y="785">1</text>
+  <text class="cardinality" x="1580" y="1202">N</text><text class="cardinality" x="1980" y="1202">N</text>
+  <use href="#entity" x="1800" y="1225"/><text class="entity-text" x="1800" y="1233" text-anchor="middle">REMINDERS</text>
+
+  <!-- REMINDERS attributes -->
+  <g text-anchor="middle">
+    <g><ellipse class="oval" cx="1570" cy="1455" rx="125" ry="29"/><text x="1570" y="1451"><tspan class="attr-name" text-decoration="underline">reminder_id</tspan><tspan class="attr-name"> (PK)</tspan><tspan class="attr-type" x="1570" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="2030" cy="1455" rx="125" ry="29"/><text x="2030" y="1451"><tspan class="attr-name">record_id (FK)</tspan><tspan class="attr-type" x="2030" dy="19">TEXT · nullable*</tspan></text></g>
+    <g><ellipse class="oval" cx="1570" cy="1530" rx="125" ry="29"/><text x="1570" y="1526"><tspan class="attr-name">obligation_id (FK)</tspan><tspan class="attr-type" x="1570" dy="19">TEXT · nullable*</tspan></text></g>
+    <g><ellipse class="oval" cx="2030" cy="1530" rx="125" ry="29"/><text x="2030" y="1526"><tspan class="attr-name">reminder_title</tspan><tspan class="attr-type" x="2030" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="1570" cy="1605" rx="125" ry="29"/><text x="1570" y="1601"><tspan class="attr-name">reminder_datetime</tspan><tspan class="attr-type" x="1570" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="2030" cy="1605" rx="125" ry="29"/><text x="2030" y="1601"><tspan class="attr-name">is_enabled</tspan><tspan class="attr-type" x="2030" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="1570" cy="1680" rx="125" ry="29"/><text x="1570" y="1676"><tspan class="attr-name">is_completed</tspan><tspan class="attr-type" x="1570" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="2030" cy="1680" rx="125" ry="29"/><text x="2030" y="1676"><tspan class="attr-name">created_at</tspan><tspan class="attr-type" x="2030" dy="19">INTEGER</tspan></text></g>
+  </g>
+
+  <!-- Standalone bottom entities and their attributes. No connector leads to these entity boxes. -->
+  <g text-anchor="middle">
+    <g><ellipse class="oval" cx="300" cy="1860" rx="125" ry="29"/><text x="300" y="1856"><tspan class="attr-name" text-decoration="underline">item_id</tspan><tspan class="attr-name"> (PK)</tspan><tspan class="attr-type" x="300" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="880" cy="1860" rx="125" ry="29"/><text x="880" y="1856"><tspan class="attr-name">item_name</tspan><tspan class="attr-type" x="880" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="300" cy="1935" rx="125" ry="29"/><text x="300" y="1931"><tspan class="attr-name">quantity</tspan><tspan class="attr-type" x="300" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="880" cy="1935" rx="125" ry="29"/><text x="880" y="1931"><tspan class="attr-name">is_completed</tspan><tspan class="attr-type" x="880" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="300" cy="2010" rx="125" ry="29"/><text x="300" y="2006"><tspan class="attr-name">created_at</tspan><tspan class="attr-type" x="300" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="880" cy="2010" rx="125" ry="29"/><text x="880" y="2006"><tspan class="attr-name">updated_at</tspan><tspan class="attr-type" x="880" dy="19">INTEGER</tspan></text></g>
+
+    <g><ellipse class="oval" cx="1510" cy="1860" rx="125" ry="29"/><text x="1510" y="1856"><tspan class="attr-name" text-decoration="underline">note_id</tspan><tspan class="attr-name"> (PK)</tspan><tspan class="attr-type" x="1510" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="2090" cy="1860" rx="125" ry="29"/><text x="2090" y="1856"><tspan class="attr-name">title</tspan><tspan class="attr-type" x="2090" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="1510" cy="1935" rx="125" ry="29"/><text x="1510" y="1931"><tspan class="attr-name">content</tspan><tspan class="attr-type" x="1510" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="2090" cy="1935" rx="125" ry="29"/><text x="2090" y="1931"><tspan class="attr-name">is_pinned</tspan><tspan class="attr-type" x="2090" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="1510" cy="2010" rx="125" ry="29"/><text x="1510" y="2006"><tspan class="attr-name">created_at</tspan><tspan class="attr-type" x="1510" dy="19">INTEGER</tspan></text></g>
+    <g><ellipse class="oval" cx="2090" cy="2010" rx="125" ry="29"/><text x="2090" y="2006"><tspan class="attr-name">updated_at</tspan><tspan class="attr-type" x="2090" dy="19">INTEGER</tspan></text></g>
+
+    <g><ellipse class="oval" cx="2780" cy="1860" rx="125" ry="29"/><text x="2780" y="1856"><tspan class="attr-name" text-decoration="underline">setting_key</tspan><tspan class="attr-name"> (PK)</tspan><tspan class="attr-type" x="2780" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="3220" cy="1860" rx="125" ry="29"/><text x="3220" y="1856"><tspan class="attr-name">setting_value</tspan><tspan class="attr-type" x="3220" dy="19">TEXT</tspan></text></g>
+    <g><ellipse class="oval" cx="3000" cy="1935" rx="125" ry="29"/><text x="3000" y="1931"><tspan class="attr-name">updated_at</tspan><tspan class="attr-type" x="3000" dy="19">INTEGER</tspan></text></g>
+  </g>
+
+  <use href="#entity" x="600" y="2180"/><text class="entity-text" x="600" y="2188" text-anchor="middle">SHOPPING_ITEMS</text>
+  <use href="#entity" x="1800" y="2180"/><text class="entity-text" x="1800" y="2188" text-anchor="middle">NOTES</text>
+  <use href="#entity" x="3000" y="2180"/><text class="entity-text" x="3000" y="2188" text-anchor="middle">APP_SETTINGS</text>
+
+  <!-- Constraint and storage notes -->
+  <rect class="note-box" x="200" y="2298" width="3200" height="86" rx="8"/>
+  <text class="note-head" x="230" y="2328">PARENT XOR CONSTRAINTS</text>
+  <text class="note-text" x="230" y="2356">* For ATTACHMENTS and REMINDERS, exactly one parent FK is populated: CHECK ((record_id IS NOT NULL) &lt;&gt; (obligation_id IS NOT NULL)). Each FK references its matching parent entity.</text>
+  <text class="note-text" x="230" y="2376">No RECORDS–OBLIGATIONS link is implied. The two HAS links to ATTACHMENTS and the two HAS links to REMINDERS are separate relationships.</text>
+
+  <!-- Legend -->
+  <g transform="translate(205 2424)">
+    <rect class="legend-entity" x="0" y="0" width="48" height="30"/><text class="legend-text" x="60" y="21">Rectangle = Entity</text>
+    <ellipse class="legend-oval" cx="300" cy="15" rx="27" ry="15"/><text class="legend-text" x="340" y="21">Oval = Attribute</text>
+    <path class="legend-diamond" d="M620,0 L647,15 L620,30 L593,15 Z"/><text class="legend-text" x="660" y="21">Diamond = Relationship</text>
+    <text class="legend-text" x="930" y="21" text-decoration="underline">record_id</text><text class="legend-text" x="1015" y="21">Underlined = PK</text>
+    <text class="legend-text" x="1210" y="21">(FK) = Foreign Key</text><text class="legend-text" x="1430" y="21">1 = One</text><text class="legend-text" x="1550" y="21">N = Many</text>
+  </g>
+  <text class="footer" x="1800" y="2500" text-anchor="middle">SQLite schema design · Room persistence layer (proposed) · Android</text>
+</svg>

@@ -29,12 +29,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-/** Native Android, low-fidelity screen flow. All values and actions are demonstration data. */
+/** Native Android prototype with local SQLite-backed records and shopping items. */
 public class MainActivity extends Activity {
-    private static final int INK = Color.rgb(42, 42, 42);
-    private static final int MUTED = Color.rgb(103, 103, 103);
-    private static final int LINE = Color.rgb(213, 213, 213);
-    private static final int PANEL = Color.rgb(247, 247, 247);
+    private static final int INK = Color.rgb(28, 43, 64);
+    private static final int MUTED = Color.rgb(99, 112, 131);
+    private static final int LINE = Color.rgb(220, 227, 236);
+    private static final int PANEL = Color.rgb(245, 248, 252);
     private final List<String> history = new ArrayList<>();
     private final List<String> shoppingItems = new ArrayList<>(Arrays.asList("Dish soap", "Notebook", "Light bulbs"));
     private final List<String> completedItems = new ArrayList<>(Arrays.asList("Oat milk"));
@@ -44,10 +44,17 @@ public class MainActivity extends Activity {
     private String currentScreen = "home";
     private String selectedCategory = "All";
     private String currentRecordTitle = "Wireless headphones";
+    private String currentRecordCategory = "Purchase", currentRecordDescription = "Receipt saved · Warranty ends 14 Dec 2026";
+    private long currentRecordId = 1L;
+    private OrbitStore store;
     private Runnable searchRefresh;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        store = new OrbitStore(this);
+        shoppingItems.clear(); completedItems.clear();
+        android.database.Cursor openItems = store.items(false); while (openItems.moveToNext()) shoppingItems.add(openItems.getString(1)); openItems.close();
+        android.database.Cursor doneItems = store.items(true); while (doneItems.moveToNext()) completedItems.add(doneItems.getString(1)); doneItems.close();
         getWindow().setStatusBarColor(Color.WHITE);
         getWindow().setNavigationBarColor(Color.WHITE);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
@@ -233,17 +240,15 @@ public class MainActivity extends Activity {
         section(p, "Reminder"); Switch reminder = new Switch(this); reminder.setText("Enable reminder · Optional"); reminder.setChecked(true); p.addView(reminder);
         field(p, "Reminder date and time", button("7 Dec 2026 · 9:00 AM", false, null), false);
         gap(p, 8); LinearLayout actions = row(); actions.addView(button("Cancel", false, this::goBack), weight());
-        actions.addView(button("Save Record", true, () -> { if (name.getText().toString().trim().isEmpty()) { name.setError("Please enter a record name"); name.requestFocus(); } else { currentRecordTitle = name.getText().toString().trim(); Toast.makeText(this, "Saved for this preview only", Toast.LENGTH_SHORT).show(); go("details"); } }), weight()); p.addView(actions);
+        actions.addView(button("Save Record", true, () -> { if (name.getText().toString().trim().isEmpty()) { name.setError("Please enter a record name"); name.requestFocus(); } else { currentRecordTitle = name.getText().toString().trim(); currentRecordCategory = category.getSelectedItem().toString(); currentRecordDescription = notes.getText().toString().trim(); long minor = 0; try { minor = Math.round(Double.parseDouble(amount.getText().toString().replace("₹", "").replace(",", "").trim()) * 100); } catch (Exception ignored) { } currentRecordId = store.saveRecord(currentRecordTitle, currentRecordCategory, currentRecordDescription, minor); Toast.makeText(this, "Saved on this device", Toast.LENGTH_SHORT).show(); go("details"); } }), weight()); p.addView(actions);
         return v;
     }
     private View libraryScreen() {
         LinearLayout v = page("YOUR SAVED INFORMATION", "Library", false); LinearLayout p = body(v);
         p.addView(button("⌕  Search records", false, () -> go("search")));
-        section(p, "Categories"); String[][] categories = {{"▤","Documents","4 records"},{"▧","Purchases","8 records"},{"◷","Warranties","3 records"},{"≡","Notes","5 records"},{"↻","Subscriptions","2 records"}};
-        for (String[] c : categories) listRow(p, c[0], c[1], c[2], "", c[1].equals("Subscriptions") ? "bills" : "details");
-        p.addView(button("Sort: Recent⌄", false, () -> Toast.makeText(this, "Sort options placeholder", Toast.LENGTH_SHORT).show()));
-        section(p, "All records · Recent"); listRow(p, "▧", "Headphones receipt", "Purchase · 18 Oct 2026 · ₹8,499", "", "details"); listRow(p, "◷", "Headphones warranty", "Warranty · Expires 14 Dec 2026", "", "details"); listRow(p, "▤", "Apartment agreement", "Document · Updated 2 Sep 2026", "", "details");
-        section(p, "Empty state preview"); emptyState(p, "No saved records yet", "Keep receipts, documents and useful dates together.", "＋ Add Record", () -> go("add"));
+        section(p, "Categories"); String[][] categories = {{"▤","Document","Documents"},{"▧","Purchase","Purchases"},{"◷","Warranty","Warranties"},{"≡","Note","Notes"},{"↻","Subscription","Subscriptions"},{"₹","Bill","Bills"}};
+        for (String[] c : categories) { android.database.Cursor countCursor=store.records("",c[1]); int count=countCursor.getCount(); countCursor.close(); int before=p.getChildCount(); listRow(p,c[0],c[2],count+ (count==1?" record":" records"),"","search"); p.getChildAt(before).setOnClickListener(view->{selectedCategory=c[1];go("search");}); }
+        section(p, "All records · Recent"); LinearLayout recordsList = column(); p.addView(recordsList); populateRecords(recordsList, "", "All");
         p.addView(button("＋ Add Record", true, () -> go("add"))); return v;
     }
     private View billsScreen() {
@@ -258,45 +263,48 @@ public class MainActivity extends Activity {
     }
     private View shoppingScreen() {
         LinearLayout v = page("A SIMPLE TO-DO LIST", "Shopping List", false); LinearLayout p = body(v); EditText input = edit("Add an item…", false);
-        LinearLayout add = row(); add.addView(input, new LinearLayout.LayoutParams(0, dp(46), 1)); add.addView(button("Add", true, () -> { String value = input.getText().toString().trim(); if (!value.isEmpty()) { shoppingItems.add(value); input.setText(""); showScreen("shopping", false); } })); p.addView(add);
+        LinearLayout add = row(); add.addView(input, new LinearLayout.LayoutParams(0, dp(46), 1)); add.addView(button("Add", true, () -> { String value = input.getText().toString().trim(); if (!value.isEmpty()) { store.addItem(value); shoppingItems.add(value); input.setText(""); showScreen("shopping", false); } })); p.addView(add);
         section(p, "To buy"); LinearLayout openList = column(); for (String item : shoppingItems) checkRow(openList, item, false); p.addView(openList);
         section(p, "Completed"); LinearLayout doneList = column(); for (String item : completedItems) checkRow(doneList, item, true); p.addView(doneList);
-        gap(p, 10); p.addView(button("Clear completed", false, () -> { completedItems.clear(); showScreen("shopping", false); }));
+        gap(p, 10); p.addView(button("Clear completed", false, () -> { store.clearCompleted(); completedItems.clear(); showScreen("shopping", false); }));
         if (shoppingItems.isEmpty() && completedItems.isEmpty()) emptyState(p, "Your list is clear", "Add items as you think of them.", null, null);
         return v;
     }
     private void checkRow(LinearLayout p, String item, boolean done) {
         CheckBox cb = new CheckBox(this); cb.setText(item); cb.setTextSize(13); cb.setTextColor(done ? MUTED : INK); cb.setButtonTintList(android.content.res.ColorStateList.valueOf(0xff555555)); cb.setChecked(done); cb.setMinHeight(dp(48)); p.addView(cb);
-        cb.setOnCheckedChangeListener((button, checked) -> { if (checked) { shoppingItems.remove(item); if (!completedItems.contains(item)) completedItems.add(item); } else { completedItems.remove(item); if (!shoppingItems.contains(item)) shoppingItems.add(item); } showScreen("shopping", false); });
+        cb.setOnCheckedChangeListener((button, checked) -> { store.completeItem(item, checked); if (checked) { shoppingItems.remove(item); if (!completedItems.contains(item)) completedItems.add(item); } else { completedItems.remove(item); if (!shoppingItems.contains(item)) shoppingItems.add(item); } showScreen("shopping", false); });
     }
     private View detailsScreen() {
         LinearLayout v = page("PURCHASE · SAVED RECORD", "Record Details", true); LinearLayout p = body(v);
-        TextView state = text("▧  Purchase                                  Active", 13, true, INK); pad(state, 12, 12, 12, 12); state.setBackground(outline(PANEL, LINE, 11)); p.addView(state);
-        section(p, "Record information"); LinearLayout c = card(p); detailTitle = text(currentRecordTitle, 13, true, INK); c.addView(detailTitle); c.addView(text("Purchase date     18 October 2026", 12, false, MUTED)); c.addView(text("Amount                 ₹8,499", 12, false, MUTED)); c.addView(text("Notes                   Wireless headphones, black.", 12, false, MUTED)); c.addView(text("Warranty ends     14 December 2026", 12, false, MUTED));
+        TextView state = text("▧  " + currentRecordCategory + "                                  Saved", 13, true, INK); pad(state, 12, 12, 12, 12); state.setBackground(outline(PANEL, LINE, 11)); p.addView(state);
+        section(p, "Record information"); LinearLayout c = card(p); detailTitle = text(currentRecordTitle, 13, true, INK); c.addView(detailTitle); c.addView(text("Stored on this device", 12, false, MUTED)); c.addView(text(currentRecordDescription.isEmpty() ? "No notes added." : currentRecordDescription, 12, false, MUTED));
         section(p, "Attachment"); p.addView(button("▤  Receipt_oct18.pdf · Attachment placeholder", false, null));
         section(p, "Reminder"); p.addView(paragraph("Warranty expiry · 7 December 2026, 9:00 AM")); p.addView(button("Edit reminder", false, () -> go("settings")));
         section(p, "Related records"); p.addView(paragraph("This warranty belongs to the headphones purchase.")); listRow(p, "◷", "Headphones warranty", "Warranty · Ends 14 Dec 2026", "", "details");
         section(p, "Actions"); LinearLayout buttons = row(); buttons.addView(button("Edit", false, () -> go("add")), weight()); buttons.addView(button("Set Reminder", false, () -> go("settings")), weight()); buttons.addView(button("Delete", false, this::confirmDelete), weight()); p.addView(buttons); return v;
     }
     private void confirmDelete() {
-        new AlertDialog.Builder(this).setTitle("Delete this record?").setMessage("This only simulates deletion in the wireframe preview.")
-                .setNegativeButton("Cancel", (d,w) -> d.dismiss()).setPositiveButton("Delete record", (d,w) -> { Toast.makeText(this, "Deletion simulated", Toast.LENGTH_SHORT).show(); goBack(); }).show();
+        new AlertDialog.Builder(this).setTitle("Delete this record?").setMessage("This removes the saved record from this device.")
+                .setNegativeButton("Cancel", (d,w) -> d.dismiss()).setPositiveButton("Delete record", (d,w) -> { store.deleteRecord(currentRecordId); Toast.makeText(this, "Record deleted", Toast.LENGTH_SHORT).show(); showScreen("library", false); }).show();
     }
     private View searchScreen() {
-        selectedCategory = "All";
         LinearLayout v = page("FIND A SAVED ITEM", "Search", true); LinearLayout p = body(v); EditText query = edit("Search records, notes…", false); p.addView(query);
-        chips(p, new String[]{"All", "Purchase", "Bill", "Warranty", "Document"});
+        chips(p, new String[]{"All", "Purchase", "Bill", "Subscription", "Warranty", "Document", "Note"});
         section(p, "Recent searches"); p.addView(button("◷  warranty", false, () -> { query.setText("warranty"); })); p.addView(button("⌕  electricity", false, () -> query.setText("electricity")));
         section(p, "Results"); LinearLayout results = column(); p.addView(results);
         Runnable filter = () -> {
-            results.removeAllViews(); String q = query.getText().toString().toLowerCase(Locale.ROOT).trim();
-            String[][] data = {{"Wireless headphones","Purchase","Receipt · 18 Oct 2026 · ₹8,499"},{"Electricity bill","Bill","Due 23 Oct 2026 · ₹1,240"},{"Headphones warranty","Warranty","Ends 14 Dec 2026 · linked to purchase"},{"Apartment agreement","Document","Updated 2 Sep 2026"},{"Cloud storage","Subscription","Renews 26 Oct · ₹199 / month"}};
-            boolean found = false; for (String[] item : data) if ((q.isEmpty() || (item[0]+item[1]+item[2]).toLowerCase(Locale.ROOT).contains(q)) && (selectedCategory.equals("All") || item[1].equals(selectedCategory))) { listRow(results, "▤", item[0], item[1]+" · "+item[2], "", "details"); found = true; }
-            if (!found) { TextView empty = paragraph("No matching records. Try another word or category."); results.addView(empty); }
+            results.removeAllViews(); populateRecords(results, query.getText().toString(), selectedCategory);
+            if (results.getChildCount()==0) results.addView(paragraph("No matching records. Try another word or category."));
         };
         searchRefresh = filter;
         query.addTextChangedListener(new TextWatcher() { public void beforeTextChanged(CharSequence s,int st,int c,int a){} public void onTextChanged(CharSequence s,int st,int before,int count){filter.run();} public void afterTextChanged(Editable e){} });
         filter.run(); p.addView(button("Clear query", false, () -> { query.setText(""); selectedCategory="All"; })); return v;
+    }
+    private void populateRecords(LinearLayout destination, String query, String category) {
+        android.database.Cursor c=store.records(query,category); int count=0;
+        try { while(c.moveToNext()) { long id=c.getLong(0); String title=c.getString(1), type=c.getString(2), description=c.getString(3); long amount=c.getLong(4); String detail=type+" · "+(description==null?"":description); if(amount>0) detail += " · ₹"+String.format(Locale.US,"%.2f",amount/100.0);
+            int before=destination.getChildCount(); listRow(destination,"▤",title,detail,"","details"); View row=destination.getChildAt(before); row.setOnClickListener(v->{currentRecordId=id;currentRecordTitle=title;currentRecordCategory=type;currentRecordDescription=description==null?"":description;go("details");}); count++;
+        }} finally { c.close(); }
     }
     private View insightsScreen() {
         LinearLayout v = page("A QUICK LOOK AHEAD", "Insights", false); LinearLayout p = body(v); chips(p, new String[]{"This month", "Next month"});
